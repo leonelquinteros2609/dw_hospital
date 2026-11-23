@@ -1,0 +1,124 @@
+{
+	"name": "df_silver_billing",
+	"properties": {
+		"description": "Limpieza y validacion de facturacion para la capa Silver",
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_bronze_billing",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenFacturacion"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_silver_admissions",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenAdmisiones"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "ds_silver_billing",
+						"type": "DatasetReference"
+					},
+					"name": "DestinoFacturacion"
+				}
+			],
+			"transformations": [
+				{
+					"name": "SeleccionarAdmision"
+				},
+				{
+					"name": "LimpiarFacturacion"
+				},
+				{
+					"name": "FiltrarFacturacion"
+				},
+				{
+					"name": "ValidarAdmision"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          billing_id as string,",
+				"          admission_id as string,",
+				"          charge_type as string,",
+				"          amount as string,",
+				"          payment_status as string,",
+				"          payment_date as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenFacturacion",
+				"source(output(",
+				"          admission_id as integer,",
+				"          patient_id as integer,",
+				"          admission_date as date,",
+				"          discharge_date as date,",
+				"          department as string,",
+				"          attending_doctor_id as integer",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenAdmisiones",
+				"OrigenAdmisiones select(mapColumn(",
+				"          IdAdmisionValida = admission_id",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SeleccionarAdmision",
+				"OrigenFacturacion derive(billing_id = toInteger(trim(billing_id)),",
+				"          admission_id = toInteger(trim(admission_id)),",
+				"          charge_type = toString(iif(isNull(charge_type) || trim(charge_type) == '', 'Sin especificar', initCap(trim(charge_type)))),",
+				"          amount = toDecimal(regexReplace(trim(amount), `[^0-9.-]`, ''), 12, 2),",
+				"          payment_status = toString(case(",
+				"        lower(trim(payment_status)) == 'paid', 'Paid',",
+				"        lower(trim(payment_status)) == 'unpaid', 'Unpaid',",
+				"        lower(trim(payment_status)) == 'pending', 'Pending',",
+				"        lower(trim(payment_status)) == 'overdue', 'Overdue',",
+				"        isNull(payment_status) || trim(payment_status) == '', 'Sin especificar',",
+				"        initCap(trim(payment_status))",
+				"    )),",
+				"          payment_date = coalesce(",
+				"        toDate(trim(payment_date), 'yyyy-MM-dd'),",
+				"        toDate(trim(payment_date), 'MM/dd/yyyy'),",
+				"        toDate(trim(payment_date), 'dd-MMM-yyyy'),",
+				"        toDate(trim(payment_date), 'MMMM dd, yyyy'),",
+				"        toDate(trim(payment_date), 'MM-dd-yy')",
+				"    )) ~> LimpiarFacturacion",
+				"LimpiarFacturacion filter(!isNull(billing_id) &&",
+				"    !isNull(admission_id) &&",
+				"    !isNull(amount) &&",
+				"    !isNull(charge_type) &&",
+				"    !isNull(payment_status)) ~> FiltrarFacturacion",
+				"FiltrarFacturacion, SeleccionarAdmision exists(admission_id == IdAdmisionValida,",
+				"     negate:false,",
+				"     broadcast: 'auto')~> ValidarAdmision",
+				"ValidarAdmision sink(allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     input(",
+				"          billing_id as integer,",
+				"          admission_id as integer,",
+				"          charge_type as string,",
+				"          amount as decimal(12,2),",
+				"          payment_status as string,",
+				"          payment_date as date",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> DestinoFacturacion"
+			]
+		}
+	}
+}
