@@ -1,0 +1,92 @@
+{
+	"name": "GoldPaciente",
+	"properties": {
+		"description": "Dimension de pacientes con edad aproximada e informacion de seguro",
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_silver_patients",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenPacientes"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "golddim_paciente",
+						"type": "DatasetReference"
+					},
+					"name": "DestinoPaciente"
+				}
+			],
+			"transformations": [
+				{
+					"name": "CalcularPaciente"
+				},
+				{
+					"name": "ColumnasPaciente"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          patient_id as integer,",
+				"          full_name as string,",
+				"          gender as string,",
+				"          date_of_birth as date,",
+				"          phone as string,",
+				"          email as string,",
+				"          address as string,",
+				"          insurance_provider as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenPacientes",
+				"OrigenPacientes derive(patient_id_bk = patient_id,",
+				"          nombre_completo = trim(full_name),",
+				"          genero = toString(case(lower(trim(gender)) == 'masculino', 'Masculino', lower(trim(gender)) == 'femenino', 'Femenino', 'Otro')),",
+				"          fecha_nacimiento = date_of_birth,",
+				"          rango_etario = toString(case(isNull(date_of_birth), 'Sin dato', year(currentDate()) - year(date_of_birth) <= 18, '0-18', year(currentDate()) - year(date_of_birth) <= 35, '19-35', year(currentDate()) - year(date_of_birth) <= 60, '36-60', '60+')),",
+				"          correo_electronico = email,",
+				"          direccion = address,",
+				"          proveedor_seguro = toString(iif(isNull(insurance_provider) || trim(insurance_provider) == '', 'Sin seguro', trim(insurance_provider)))) ~> CalcularPaciente",
+				"CalcularPaciente select(mapColumn(",
+				"          patient_id_bk,",
+				"          nombre_completo,",
+				"          genero,",
+				"          fecha_nacimiento,",
+				"          rango_etario,",
+				"          correo_electronico,",
+				"          direccion,",
+				"          proveedor_seguro",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> ColumnasPaciente",
+				"ColumnasPaciente sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          paciente_key as integer,",
+				"          patient_id_bk as integer,",
+				"          nombre_completo as string,",
+				"          genero as string,",
+				"          fecha_nacimiento as date,",
+				"          rango_etario as string,",
+				"          correo_electronico as string,",
+				"          direccion as string,",
+				"          proveedor_seguro as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> DestinoPaciente"
+			]
+		}
+	}
+}
