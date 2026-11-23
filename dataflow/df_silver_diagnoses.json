@@ -1,0 +1,106 @@
+{
+	"name": "df_silver_diagnoses",
+	"properties": {
+		"description": "Limpieza y validacion de diagnosticos para la capa Silver",
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_bronze_diagnoses",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenDiagnosticos"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_silver_admissions",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenAdmisiones"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "ds_silver_diagnoses",
+						"type": "DatasetReference"
+					},
+					"name": "DestinoDiagnosticos"
+				}
+			],
+			"transformations": [
+				{
+					"name": "LimpiarDiagnosticos"
+				},
+				{
+					"name": "FiltrarDiagnosticos"
+				},
+				{
+					"name": "ValidarAdmision"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          diagnosis_id as string,",
+				"          admission_id as string,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenDiagnosticos",
+				"source(output(",
+				"          admission_id as integer,",
+				"          patient_id as integer,",
+				"          admission_date as date,",
+				"          discharge_date as date,",
+				"          department as string,",
+				"          attending_doctor_id as integer",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenAdmisiones",
+				"OrigenDiagnosticos derive(diagnosis_id = toInteger(trim(diagnosis_id)),",
+				"          admission_id = toInteger(trim(admission_id)),",
+				"          icd_code = upper(trim(icd_code)),",
+				"          diagnosis_description = trim(diagnosis_description),",
+				"          severity = toString(case(",
+				"          isNull(severity) || trim(severity) == '', 'No especificada',",
+				"          lower(trim(severity)) == 'mild', 'Leve',",
+				"          lower(trim(severity)) == 'moderate', 'Moderado',",
+				"          lower(trim(severity)) == 'severe', 'Grave',",
+				"          lower(trim(severity)) == 'critical', 'Critico',",
+				"          initCap(trim(severity))",
+				"     ))) ~> LimpiarDiagnosticos",
+				"LimpiarDiagnosticos filter(!isNull(diagnosis_id) &&",
+				"     !isNull(admission_id) &&",
+				"     !isNull(icd_code) &&",
+				"     trim(icd_code) != '') ~> FiltrarDiagnosticos",
+				"FiltrarDiagnosticos, OrigenAdmisiones exists(toInteger(byName('admission_id','FiltrarDiagnosticos')) == toInteger(byName('admission_id','OrigenAdmisiones')),",
+				"     negate:false,",
+				"     broadcast: 'right')~> ValidarAdmision",
+				"ValidarAdmision sink(allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     input(",
+				"          diagnosis_id as integer,",
+				"          admission_id as integer,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> DestinoDiagnosticos"
+			]
+		}
+	}
+}
