@@ -1,0 +1,126 @@
+{
+	"name": "df_silver_admissions",
+	"properties": {
+		"description": "Limpieza y validacion de admisiones para la capa Silver",
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_bronze_admissions",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenAdmisiones"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_silver_patients",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenPacientes"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "ds_silver_admissions",
+						"type": "DatasetReference"
+					},
+					"name": "DestinoAdmisiones"
+				}
+			],
+			"transformations": [
+				{
+					"name": "LimpiarAdmisiones"
+				},
+				{
+					"name": "FiltrarAdmisiones"
+				},
+				{
+					"name": "CorregirAlta"
+				},
+				{
+					"name": "ValidarPaciente"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          admission_id as string,",
+				"          patient_id as string,",
+				"          admission_date as string,",
+				"          discharge_date as string,",
+				"          department as string,",
+				"          attending_doctor_id as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenAdmisiones",
+				"source(output(",
+				"          patient_id as integer,",
+				"          full_name as string,",
+				"          gender as string,",
+				"          date_of_birth as date,",
+				"          phone as string,",
+				"          email as string,",
+				"          address as string,",
+				"          insurance_provider as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenPacientes",
+				"OrigenAdmisiones derive(admission_id = toInteger(trim(admission_id)),",
+				"          patient_id = toInteger(trim(patient_id)),",
+				"          attending_doctor_id = toInteger(trim(attending_doctor_id)),",
+				"          admission_date = coalesce(",
+				"          toDate(trim(admission_date), 'yyyy-MM-dd'),",
+				"          toDate(trim(admission_date), 'dd-MMM-yyyy'),",
+				"          toDate(trim(admission_date), 'MMMM dd, yyyy'),",
+				"          toDate(trim(admission_date), 'MM/dd/yyyy'),",
+				"          toDate(trim(admission_date), 'MM-dd-yyyy')",
+				"     ),",
+				"          discharge_date = coalesce(",
+				"          toDate(trim(discharge_date), 'yyyy-MM-dd'),",
+				"          toDate(trim(discharge_date), 'dd-MMM-yyyy'),",
+				"          toDate(trim(discharge_date), 'MMMM dd, yyyy'),",
+				"          toDate(trim(discharge_date), 'MM/dd/yyyy'),",
+				"          toDate(trim(discharge_date), 'MM-dd-yyyy')",
+				"     ),",
+				"          department = toString(initCap(trim(department)))) ~> LimpiarAdmisiones",
+				"LimpiarAdmisiones filter(!isNull(admission_id) &&",
+				"     !isNull(patient_id) &&",
+				"     !isNull(admission_date) &&",
+				"     !isNull(attending_doctor_id) &&",
+				"     !isNull(department) &&",
+				"     department != '') ~> FiltrarAdmisiones",
+				"FiltrarAdmisiones derive(discharge_date = iif(",
+				"          !isNull(discharge_date) && discharge_date < admission_date,",
+				"          toDate(null()),",
+				"          discharge_date",
+				"     )) ~> CorregirAlta",
+				"CorregirAlta, OrigenPacientes exists(toString(byName('patient_id', 'CorregirAlta')) == toString(byName('patient_id', 'OrigenPacientes')),",
+				"     negate:false,",
+				"     broadcast: 'right')~> ValidarPaciente",
+				"ValidarPaciente sink(allowSchemaDrift: false,",
+				"     validateSchema: true,",
+				"     input(",
+				"          admission_id as integer,",
+				"          patient_id as integer,",
+				"          admission_date as date,",
+				"          discharge_date as date,",
+				"          department as string,",
+				"          attending_doctor_id as integer",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> DestinoAdmisiones"
+			]
+		}
+	}
+}
