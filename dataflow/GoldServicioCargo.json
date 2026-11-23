@@ -1,0 +1,78 @@
+{
+	"name": "GoldServicioCargo",
+	"properties": {
+		"description": "Dimension unica por tipo de cargo y estado de pago",
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_silver_billing",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenFacturacion"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "golddim_servicio_cargo",
+						"type": "DatasetReference"
+					},
+					"name": "DestinoServicio"
+				}
+			],
+			"transformations": [
+				{
+					"name": "LimpiarServicio"
+				},
+				{
+					"name": "AgruparServicio"
+				},
+				{
+					"name": "ColumnasServicio"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          billing_id as integer,",
+				"          admission_id as integer,",
+				"          charge_type as string,",
+				"          amount as decimal(12,2),",
+				"          payment_status as string,",
+				"          payment_date as date",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenFacturacion",
+				"OrigenFacturacion derive(tipo_cargo = toString(coalesce(charge_type, 'Sin especificar')),",
+				"          estado_pago = toString(coalesce(payment_status, 'Sin especificar'))) ~> LimpiarServicio",
+				"LimpiarServicio aggregate(groupBy(tipo_cargo,",
+				"          estado_pago),",
+				"     Cantidad = count()) ~> AgruparServicio",
+				"AgruparServicio select(mapColumn(",
+				"          tipo_cargo,",
+				"          estado_pago",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> ColumnasServicio",
+				"ColumnasServicio sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          servicio_cargo_key as integer,",
+				"          tipo_cargo as string,",
+				"          estado_pago as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> DestinoServicio"
+			]
+		}
+	}
+}
