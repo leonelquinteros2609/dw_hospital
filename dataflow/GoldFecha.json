@@ -1,0 +1,169 @@
+{
+	"name": "GoldFecha",
+	"properties": {
+		"description": "Construye la dimension de fechas desde ingreso, alta y pago",
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_silver_admissions",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenIngresos"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_silver_admissions",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenAltas"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_silver_billing",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenPagos"
+				}
+			],
+			"sinks": [
+				{
+					"name": "DestinoFecha"
+				}
+			],
+			"transformations": [
+				{
+					"name": "FechaIngreso"
+				},
+				{
+					"name": "FechaAlta"
+				},
+				{
+					"name": "FechaPago"
+				},
+				{
+					"name": "UnirAdmisiones"
+				},
+				{
+					"name": "UnirFechas"
+				},
+				{
+					"name": "FiltrarFechas"
+				},
+				{
+					"name": "AgruparFechas"
+				},
+				{
+					"name": "SoloFechas"
+				},
+				{
+					"name": "CalcularFechas"
+				},
+				{
+					"name": "NombresFecha"
+				},
+				{
+					"name": "ColumnasFecha"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          admission_id as integer,",
+				"          patient_id as integer,",
+				"          admission_date as date,",
+				"          discharge_date as date,",
+				"          department as string,",
+				"          attending_doctor_id as integer",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenIngresos",
+				"source(output(",
+				"          admission_id as integer,",
+				"          patient_id as integer,",
+				"          admission_date as date,",
+				"          discharge_date as date,",
+				"          department as string,",
+				"          attending_doctor_id as integer",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenAltas",
+				"source(output(",
+				"          billing_id as integer,",
+				"          admission_id as integer,",
+				"          charge_type as string,",
+				"          amount as decimal(12,2),",
+				"          payment_status as string,",
+				"          payment_date as date",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenPagos",
+				"OrigenIngresos select(mapColumn(",
+				"          fecha_completa = admission_date",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> FechaIngreso",
+				"OrigenAltas select(mapColumn(",
+				"          fecha_completa = discharge_date",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> FechaAlta",
+				"OrigenPagos select(mapColumn(",
+				"          fecha_completa = payment_date",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> FechaPago",
+				"FechaIngreso, FechaAlta union(byName: true)~> UnirAdmisiones",
+				"UnirAdmisiones, FechaPago union(byName: true)~> UnirFechas",
+				"UnirFechas filter(!isNull(fecha_completa)) ~> FiltrarFechas",
+				"FiltrarFechas aggregate(groupBy(fecha_completa),",
+				"     Total = count()) ~> AgruparFechas",
+				"AgruparFechas select(mapColumn(",
+				"          fecha_completa",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SoloFechas",
+				"SoloFechas derive(fecha_key = year(fecha_completa) * 10000 + month(fecha_completa) * 100 + dayOfMonth(fecha_completa),",
+				"          anio = toShort(year(fecha_completa)),",
+				"          trimestre = toByte(toInteger((month(fecha_completa) + 2) / 3)),",
+				"          mes = toByte(month(fecha_completa)),",
+				"          mes_nombre = case(month(fecha_completa) == 1, 'Enero', month(fecha_completa) == 2, 'Febrero', month(fecha_completa) == 3, 'Marzo', month(fecha_completa) == 4, 'Abril', month(fecha_completa) == 5, 'Mayo', month(fecha_completa) == 6, 'Junio', month(fecha_completa) == 7, 'Julio', month(fecha_completa) == 8, 'Agosto', month(fecha_completa) == 9, 'Septiembre', month(fecha_completa) == 10, 'Octubre', month(fecha_completa) == 11, 'Noviembre', month(fecha_completa) == 12, 'Diciembre', 'Desconocido'),",
+				"          semana_anio = toByte(weekOfYear(fecha_completa)),",
+				"          dia_mes = toByte(dayOfMonth(fecha_completa)),",
+				"          dia_semana = toByte(iif(dayOfWeek(fecha_completa) == 1, 7, dayOfWeek(fecha_completa) - 1)),",
+				"          dia_nombre = case(dayOfWeek(fecha_completa) == 1, 'Domingo', dayOfWeek(fecha_completa) == 2, 'Lunes', dayOfWeek(fecha_completa) == 3, 'Martes', dayOfWeek(fecha_completa) == 4, 'Miercoles', dayOfWeek(fecha_completa) == 5, 'Jueves', dayOfWeek(fecha_completa) == 6, 'Viernes', dayOfWeek(fecha_completa) == 7, 'Sabado', 'Desconocido'),",
+				"          es_fin_de_semana = dayOfWeek(fecha_completa) == 1 || dayOfWeek(fecha_completa) == 7) ~> CalcularFechas",
+				"CalcularFechas derive(trimestre_nombre = concat('T', toString(trimestre)),",
+				"          mes_corto = substring(mes_nombre, 1, 3)) ~> NombresFecha",
+				"NombresFecha select(mapColumn(",
+				"          fecha_key,",
+				"          fecha_completa,",
+				"          anio,",
+				"          trimestre,",
+				"          trimestre_nombre,",
+				"          mes,",
+				"          mes_nombre,",
+				"          mes_corto,",
+				"          semana_anio,",
+				"          dia_mes,",
+				"          dia_semana,",
+				"          dia_nombre,",
+				"          es_fin_de_semana",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> ColumnasFecha",
+				"ColumnasFecha sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     format: 'table') ~> DestinoFecha"
+			]
+		}
+	}
+}
