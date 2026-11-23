@@ -51,7 +51,7 @@
 			"sinks": [
 				{
 					"dataset": {
-						"referenceName": "goldfact_admisiones",
+						"referenceName": "goldfact_facturacion",
 						"type": "DatasetReference"
 					},
 					"name": "DestinoHechosFacturacion"
@@ -251,16 +251,15 @@
 				"ColumnasHechos sink(allowSchemaDrift: false,",
 				"     validateSchema: false,",
 				"     input(",
-				"          admision_key as long,",
+				"          facturacion_key as long,",
+				"          billing_id_bk as integer,",
 				"          admission_id_bk as integer,",
 				"          paciente_key as integer,",
 				"          departamento_key as integer,",
-				"          diagnostico_key as integer,",
-				"          fecha_ingreso_key as integer,",
-				"          fecha_alta_key as integer,",
-				"          medico_id as integer,",
-				"          dias_estancia as integer,",
-				"          conteo_admisiones as integer",
+				"          servicio_cargo_key as integer,",
+				"          fecha_pago_key as integer,",
+				"          monto_facturado as decimal(12,2),",
+				"          conteo_transacciones as integer",
 				"     ),",
 				"     deletable:false,",
 				"     insertable:true,",
