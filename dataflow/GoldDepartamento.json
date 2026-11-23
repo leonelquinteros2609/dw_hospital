@@ -1,0 +1,78 @@
+{
+	"name": "GoldDepartamento",
+	"properties": {
+		"description": "Crea una fila unica por departamento de admisiones",
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_silver_admissions",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenAdmisiones"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "golddim_departamento",
+						"type": "DatasetReference"
+					},
+					"name": "DestinoDepartamento"
+				}
+			],
+			"transformations": [
+				{
+					"name": "LimpiarDepartamento"
+				},
+				{
+					"name": "FiltrarDepartamento"
+				},
+				{
+					"name": "AgruparDepartamento"
+				},
+				{
+					"name": "ColumnasDepartamento"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          admission_id as integer,",
+				"          patient_id as integer,",
+				"          admission_date as date,",
+				"          discharge_date as date,",
+				"          department as string,",
+				"          attending_doctor_id as integer",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenAdmisiones",
+				"OrigenAdmisiones derive(nombre_departamento = trim(department)) ~> LimpiarDepartamento",
+				"LimpiarDepartamento filter(!isNull(nombre_departamento) && nombre_departamento != '') ~> FiltrarDepartamento",
+				"FiltrarDepartamento aggregate(groupBy(nombre_departamento),",
+				"     Cantidad = count()) ~> AgruparDepartamento",
+				"AgruparDepartamento select(mapColumn(",
+				"          nombre_departamento",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> ColumnasDepartamento",
+				"ColumnasDepartamento sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          departamento_key as integer,",
+				"          nombre_departamento as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> DestinoDepartamento"
+			]
+		}
+	}
+}

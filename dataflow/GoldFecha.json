@@ -29,6 +29,10 @@
 			],
 			"sinks": [
 				{
+					"dataset": {
+						"referenceName": "golddim_fecha",
+						"type": "DatasetReference"
+					},
 					"name": "DestinoFecha"
 				}
 			],
@@ -160,9 +164,29 @@
 				"     skipDuplicateMapOutputs: true) ~> ColumnasFecha",
 				"ColumnasFecha sink(allowSchemaDrift: false,",
 				"     validateSchema: false,",
+				"     input(",
+				"          fecha_key as integer,",
+				"          fecha_completa as date,",
+				"          anio as integer,",
+				"          trimestre as integer,",
+				"          trimestre_nombre as string,",
+				"          mes as integer,",
+				"          mes_nombre as string,",
+				"          mes_corto as string,",
+				"          semana_anio as integer,",
+				"          dia_mes as integer,",
+				"          dia_semana as integer,",
+				"          dia_nombre as string,",
+				"          es_fin_de_semana as boolean",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
 				"     skipDuplicateMapInputs: true,",
 				"     skipDuplicateMapOutputs: true,",
-				"     format: 'table') ~> DestinoFecha"
+				"     errorHandlingOption: 'stopOnFirstError') ~> DestinoFecha"
 			]
 		}
 	}
