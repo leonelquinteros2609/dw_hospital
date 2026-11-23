@@ -1,0 +1,330 @@
+{
+	"name": "GoldHechosAdmisiones",
+	"properties": {
+		"description": "Hechos de admisiones: una fila por admision, diagnostico representativo",
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_silver_admissions",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenAdmisiones"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_silver_diagnoses",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenDiagnosticos"
+				},
+				{
+					"dataset": {
+						"referenceName": "golddim_diagnostico",
+						"type": "DatasetReference"
+					},
+					"name": "DimensionDiagnostico"
+				},
+				{
+					"dataset": {
+						"referenceName": "golddim_paciente",
+						"type": "DatasetReference"
+					},
+					"name": "DimensionPaciente"
+				},
+				{
+					"dataset": {
+						"referenceName": "golddim_departamento",
+						"type": "DatasetReference"
+					},
+					"name": "DimensionDepartamento"
+				},
+				{
+					"dataset": {
+						"referenceName": "golddim_fecha",
+						"type": "DatasetReference"
+					},
+					"name": "DimensionFecha"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "goldfact_admisiones",
+						"type": "DatasetReference"
+					},
+					"name": "DestinoHechosAdmisiones"
+				}
+			],
+			"transformations": [
+				{
+					"name": "DiagnosticoParaCruce"
+				},
+				{
+					"name": "DatosDiagnostico"
+				},
+				{
+					"name": "CruzarDiagnostico"
+				},
+				{
+					"name": "DiagnosticosConClave"
+				},
+				{
+					"name": "DiagnosticoPorAdmision"
+				},
+				{
+					"name": "SeleccionarElegido"
+				},
+				{
+					"name": "DiagnosticoSinDato"
+				},
+				{
+					"name": "PacientesParaCruce"
+				},
+				{
+					"name": "DepartamentoParaCruce"
+				},
+				{
+					"name": "FechaParaIngreso"
+				},
+				{
+					"name": "FechaParaAlta"
+				},
+				{
+					"name": "BuscarDiagnostico"
+				},
+				{
+					"name": "CodigoPredeterminado"
+				},
+				{
+					"name": "BuscarSinDiagnostico"
+				},
+				{
+					"name": "BuscarPaciente"
+				},
+				{
+					"name": "BuscarDepartamento"
+				},
+				{
+					"name": "BuscarFechaIngreso"
+				},
+				{
+					"name": "BuscarFechaAlta"
+				},
+				{
+					"name": "CalcularHechos"
+				},
+				{
+					"name": "FiltrarHechos"
+				},
+				{
+					"name": "ColumnasHechos"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          admission_id as integer,",
+				"          patient_id as integer,",
+				"          admission_date as date,",
+				"          discharge_date as date,",
+				"          department as string,",
+				"          attending_doctor_id as integer",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenAdmisiones",
+				"source(output(",
+				"          diagnosis_id as integer,",
+				"          admission_id as integer,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenDiagnosticos",
+				"source(output(",
+				"          diagnostico_key as integer,",
+				"          codigo_icd as string,",
+				"          descripcion_patologia as string,",
+				"          nivel_severidad as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> DimensionDiagnostico",
+				"source(output(",
+				"          paciente_key as integer,",
+				"          patient_id_bk as integer,",
+				"          nombre_completo as string,",
+				"          genero as string,",
+				"          fecha_nacimiento as date,",
+				"          rango_etario as string,",
+				"          correo_electronico as string,",
+				"          direccion as string,",
+				"          proveedor_seguro as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> DimensionPaciente",
+				"source(output(",
+				"          departamento_key as integer,",
+				"          nombre_departamento as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> DimensionDepartamento",
+				"source(output(",
+				"          fecha_key as integer,",
+				"          fecha_completa as date,",
+				"          anio as short,",
+				"          trimestre as byte,",
+				"          trimestre_nombre as string,",
+				"          mes as byte,",
+				"          mes_nombre as string,",
+				"          mes_corto as string,",
+				"          semana_anio as byte,",
+				"          dia_mes as byte,",
+				"          dia_semana as byte,",
+				"          dia_nombre as string,",
+				"          es_fin_de_semana as boolean",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> DimensionFecha",
+				"DimensionDiagnostico select(mapColumn(",
+				"          CodigoDim = codigo_icd,",
+				"          DescripcionDim = descripcion_patologia,",
+				"          SeveridadDim = nivel_severidad,",
+				"          ClaveDimDiagnostico = diagnostico_key",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> DiagnosticoParaCruce",
+				"OrigenDiagnosticos derive(CodigoOrigen = upper(trim(icd_code)),",
+				"          DescripcionOrigen = toString(coalesce(diagnosis_description,'No registrado')),",
+				"          SeveridadOrigen = toString(coalesce(severity,'No especificada'))) ~> DatosDiagnostico",
+				"DatosDiagnostico, DiagnosticoParaCruce lookup(CodigoOrigen == CodigoDim",
+				"     && DescripcionOrigen == DescripcionDim",
+				"     && SeveridadOrigen == SeveridadDim,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> CruzarDiagnostico",
+				"CruzarDiagnostico filter(!isNull(ClaveDimDiagnostico)) ~> DiagnosticosConClave",
+				"DiagnosticosConClave aggregate(groupBy(admission_id),",
+				"     ClaveElegida = min(ClaveDimDiagnostico)) ~> DiagnosticoPorAdmision",
+				"DiagnosticoPorAdmision select(mapColumn(",
+				"          AdmisionDiagnostico = admission_id,",
+				"          ClaveElegida",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SeleccionarElegido",
+				"DimensionDiagnostico select(mapColumn(",
+				"          CodigoSinDato = codigo_icd,",
+				"          ClaveSinDato = diagnostico_key",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> DiagnosticoSinDato",
+				"DimensionPaciente select(mapColumn(",
+				"          PacienteGold = paciente_key,",
+				"          IdPacienteOrigen = patient_id_bk",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> PacientesParaCruce",
+				"DimensionDepartamento select(mapColumn(",
+				"          DepartamentoGold = departamento_key,",
+				"          NombreDepartamento = nombre_departamento",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> DepartamentoParaCruce",
+				"DimensionFecha select(mapColumn(",
+				"          FechaIngresoGold = fecha_key,",
+				"          FechaIngresoCompleta = fecha_completa",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> FechaParaIngreso",
+				"DimensionFecha select(mapColumn(",
+				"          FechaAltaGold = fecha_key,",
+				"          FechaAltaCompleta = fecha_completa",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> FechaParaAlta",
+				"OrigenAdmisiones, SeleccionarElegido lookup(admission_id == AdmisionDiagnostico,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> BuscarDiagnostico",
+				"BuscarDiagnostico derive(CodigoFaltante = 'SIN DIAG') ~> CodigoPredeterminado",
+				"CodigoPredeterminado, DiagnosticoSinDato lookup(CodigoFaltante == CodigoSinDato,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> BuscarSinDiagnostico",
+				"BuscarSinDiagnostico, PacientesParaCruce lookup(patient_id == IdPacienteOrigen,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> BuscarPaciente",
+				"BuscarPaciente, DepartamentoParaCruce lookup(toString(department) == toString(NombreDepartamento),",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> BuscarDepartamento",
+				"BuscarDepartamento, FechaParaIngreso lookup(admission_date == FechaIngresoCompleta,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> BuscarFechaIngreso",
+				"BuscarFechaIngreso, FechaParaAlta lookup(discharge_date == FechaAltaCompleta,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> BuscarFechaAlta",
+				"BuscarFechaAlta derive(admission_id_bk = admission_id,",
+				"          paciente_key = PacienteGold,",
+				"          departamento_key = DepartamentoGold,",
+				"          diagnostico_key = toInteger(coalesce(ClaveElegida, ClaveSinDato)),",
+				"          fecha_ingreso_key = FechaIngresoGold,",
+				"          fecha_alta_key = FechaAltaGold,",
+				"          medico_id = attending_doctor_id,",
+				"          dias_estancia = iif(isNull(discharge_date), toInteger(null()), toInteger((toTimestamp(discharge_date) - toTimestamp(admission_date)) / days(1))),",
+				"          conteo_admisiones = 1) ~> CalcularHechos",
+				"CalcularHechos filter(!isNull(paciente_key) && !isNull(departamento_key) && !isNull(diagnostico_key) && !isNull(fecha_ingreso_key)) ~> FiltrarHechos",
+				"FiltrarHechos select(mapColumn(",
+				"          admission_id_bk,",
+				"          paciente_key,",
+				"          departamento_key,",
+				"          diagnostico_key,",
+				"          fecha_ingreso_key,",
+				"          fecha_alta_key,",
+				"          medico_id,",
+				"          dias_estancia,",
+				"          conteo_admisiones",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> ColumnasHechos",
+				"ColumnasHechos sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          admision_key as long,",
+				"          admission_id_bk as integer,",
+				"          paciente_key as integer,",
+				"          departamento_key as integer,",
+				"          diagnostico_key as integer,",
+				"          fecha_ingreso_key as integer,",
+				"          fecha_alta_key as integer,",
+				"          medico_id as integer,",
+				"          dias_estancia as integer,",
+				"          conteo_admisiones as integer",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> DestinoHechosAdmisiones"
+			]
+		}
+	}
+}
