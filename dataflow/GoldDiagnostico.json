@@ -1,0 +1,138 @@
+{
+	"name": "GoldDiagnostico",
+	"properties": {
+		"description": "Dimension unica por codigo descripcion y severidad; incluye valor desconocido",
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_silver_diagnoses",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenDiagnosticos"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_silver_admissions",
+						"type": "DatasetReference"
+					},
+					"name": "OrigenAdmisiones"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "golddim_diagnostico",
+						"type": "DatasetReference"
+					},
+					"name": "DestinoDiagnostico"
+				}
+			],
+			"transformations": [
+				{
+					"name": "LimpiarDiagnostico"
+				},
+				{
+					"name": "ColumnasDiagnostico"
+				},
+				{
+					"name": "SemillaDesconocido"
+				},
+				{
+					"name": "ValorDesconocido"
+				},
+				{
+					"name": "ColumnasDesconocido"
+				},
+				{
+					"name": "UnirDiagnosticos"
+				},
+				{
+					"name": "FiltrarDiagnosticos"
+				},
+				{
+					"name": "AgruparDiagnosticos"
+				},
+				{
+					"name": "ColumnasFinalesDiagnostico"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          diagnosis_id as integer,",
+				"          admission_id as integer,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenDiagnosticos",
+				"source(output(",
+				"          admission_id as integer,",
+				"          patient_id as integer,",
+				"          admission_date as date,",
+				"          discharge_date as date,",
+				"          department as string,",
+				"          attending_doctor_id as integer",
+				"     ),",
+				"     allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> OrigenAdmisiones",
+				"OrigenDiagnosticos derive(codigo_icd = upper(trim(icd_code)),",
+				"          descripcion_patologia = toString(coalesce(diagnosis_description,'No registrado')),",
+				"          nivel_severidad = toString(coalesce(severity, 'No especificada'))) ~> LimpiarDiagnostico",
+				"LimpiarDiagnostico select(mapColumn(",
+				"          codigo_icd,",
+				"          descripcion_patologia,",
+				"          nivel_severidad",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> ColumnasDiagnostico",
+				"OrigenAdmisiones aggregate(Total = count()) ~> SemillaDesconocido",
+				"SemillaDesconocido derive(codigo_icd = 'SIN DIAG',",
+				"          descripcion_patologia = 'No registrado',",
+				"          nivel_severidad = 'No especificada') ~> ValorDesconocido",
+				"ValorDesconocido select(mapColumn(",
+				"          codigo_icd,",
+				"          descripcion_patologia,",
+				"          nivel_severidad",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> ColumnasDesconocido",
+				"ColumnasDiagnostico, ColumnasDesconocido union(byName: true)~> UnirDiagnosticos",
+				"UnirDiagnosticos filter(!isNull(codigo_icd) && codigo_icd != '') ~> FiltrarDiagnosticos",
+				"FiltrarDiagnosticos aggregate(groupBy(codigo_icd,",
+				"          descripcion_patologia,",
+				"          nivel_severidad),",
+				"     Cantidad = count()) ~> AgruparDiagnosticos",
+				"AgruparDiagnosticos select(mapColumn(",
+				"          codigo_icd,",
+				"          descripcion_patologia,",
+				"          nivel_severidad",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> ColumnasFinalesDiagnostico",
+				"ColumnasFinalesDiagnostico sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          diagnostico_key as integer,",
+				"          codigo_icd as string,",
+				"          descripcion_patologia as string,",
+				"          nivel_severidad as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> DestinoDiagnostico"
+			]
+		}
+	}
+}
